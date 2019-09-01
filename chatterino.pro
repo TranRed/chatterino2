@@ -38,7 +38,6 @@ win32:RC_FILE = resources/windows.rc
 macx {
     LIBS += -L/usr/local/lib
 }
-qbsSearchPaths: "lib/snorenitify"
 
 # Submodules
 DEFINES += IRC_NAMESPACE=Communi
@@ -80,7 +79,6 @@ SOURCES += \
     src/BrowserExtension.cpp \
     src/common/Channel.cpp \
     src/common/CompletionModel.cpp \
-    src/common/DownloadManager.cpp \
     src/common/Env.cpp \
     src/common/LinkParser.cpp \
     src/common/NetworkPrivate.cpp \
@@ -238,7 +236,6 @@ HEADERS += \
     src/common/Common.hpp \
     src/common/CompletionModel.hpp \
     src/common/ConcurrentMap.hpp \
-    src/common/DownloadManager.hpp \
     src/common/LinkParser.hpp \
     src/common/NetworkCommon.hpp \
     src/common/NetworkPrivate.hpp \
