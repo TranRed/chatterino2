@@ -35,10 +35,8 @@ NotificationPage::NotificationPage()
                     "Flash taskbar", getSettings()->notificationFlashTaskbar));
                 settings.append(this->createCheckBox(
                     "Play sound", getSettings()->notificationPlaySound));
-#ifdef Q_OS_WIN
-                settings.append(
-                    this->createCheckBox("Enable toasts (Windows 8 or later)",
-                                         getSettings()->notificationToast));
+                settings.append(this->createCheckBox(
+                    "Enable toasts", getSettings()->notificationToast));
                 auto openIn = settings.emplace<QHBoxLayout>().withoutMargin();
                 {
                     openIn.emplace<QLabel>("Open stream from Toast:  ")
@@ -56,7 +54,6 @@ NotificationPage::NotificationPage()
                 }
                 openIn->setContentsMargins(40, 0, 0, 0);
                 openIn->setSizeConstraint(QLayout::SetMaximumSize);
-#endif
                 auto customSound =
                     layout.emplace<QHBoxLayout>().withoutMargin();
                 {
@@ -77,7 +74,8 @@ NotificationPage::NotificationPage()
 
                 settings->addStretch(1);
             }
-            auto twitchChannels = tabs.appendTab(new QVBoxLayout, "Twitch");
+            auto twitchChannels =
+                tabs.appendTab(new QVBoxLayout, "Channel going live");
             {
                 EditableModelView *view =
                     twitchChannels

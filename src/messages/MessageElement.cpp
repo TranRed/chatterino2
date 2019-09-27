@@ -134,7 +134,8 @@ void EmoteElement::addToContainer(MessageLayoutContainer &container,
     {
         if (flags.has(MessageElementFlag::EmoteImages))
         {
-            auto image = this->emote_->images.getImage(container.getScale());
+            auto image =
+                this->emote_->images.getImageOrLoaded(container.getScale());
             if (image->isEmpty())
                 return;
 
@@ -171,7 +172,8 @@ void BadgeElement::addToContainer(MessageLayoutContainer &container,
 {
     if (flags.hasAny(this->getFlags()))
     {
-        auto image = this->emote_->images.getImage(container.getScale());
+        auto image =
+            this->emote_->images.getImageOrLoaded(container.getScale());
         if (image->isEmpty())
             return;
 
@@ -181,6 +183,11 @@ void BadgeElement::addToContainer(MessageLayoutContainer &container,
         container.addElement((new ImageLayoutElement(*this, image, size))
                                  ->setLink(this->getLink()));
     }
+}
+
+EmotePtr BadgeElement::getEmote() const
+{
+    return this->emote_;
 }
 
 // TEXT
@@ -347,8 +354,7 @@ void TwitchModerationElement::addToContainer(MessageLayoutContainer &container,
         QSize size(int(container.getScale() * 16),
                    int(container.getScale() * 16));
 
-        for (const auto &action :
-             getApp()->moderationActions->items.getVector())
+        for (const auto &action : getApp()->moderationActions->items)
         {
             if (auto image = action.getImage())
             {

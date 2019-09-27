@@ -1,6 +1,7 @@
 #include "widgets/helper/ResizingTextEdit.hpp"
 #include "common/Common.hpp"
 #include "common/CompletionModel.hpp"
+#include "singletons/Settings.hpp"
 
 namespace chatterino {
 
@@ -14,6 +15,11 @@ ResizingTextEdit::ResizingTextEdit()
 
     QObject::connect(this, &QTextEdit::textChanged, this,
                      &QWidget::updateGeometry);
+
+    // Whenever the setting for emote completion changes, force a
+    // refresh on the completion model the next time "Tab" is pressed
+    getSettings()->prefixOnlyEmoteCompletion.connect(
+        [this] { this->completionInProgress_ = false; });
 
     this->setFocusPolicy(Qt::ClickFocus);
 }
@@ -96,6 +102,17 @@ void ResizingTextEdit::keyPressEvent(QKeyEvent *event)
         }
 
         QString currentCompletionPrefix = this->textUnderCursor();
+        bool isFirstWord = [&] {
+            QString plainText = this->toPlainText();
+            for (int i = this->textCursor().position(); i >= 0; i--)
+            {
+                if (plainText[i] == ' ')
+                {
+                    return false;
+                }
+            }
+            return true;
+        }();
 
         // check if there is something to complete
         if (currentCompletionPrefix.size() <= 1)
@@ -111,7 +128,7 @@ void ResizingTextEdit::keyPressEvent(QKeyEvent *event)
             // First type pressing tab after modifying a message, we refresh our
             // completion model
             this->completer_->setModel(completionModel);
-            completionModel->refresh(currentCompletionPrefix);
+            completionModel->refresh(currentCompletionPrefix, isFirstWord);
             this->completionInProgress_ = true;
             this->completer_->setCompletionPrefix(currentCompletionPrefix);
             this->completer_->complete();
@@ -198,6 +215,16 @@ void ResizingTextEdit::setCompleter(QCompleter *c)
     this->completer_->setWidget(this);
     this->completer_->setCompletionMode(QCompleter::InlineCompletion);
     this->completer_->setCaseSensitivity(Qt::CaseInsensitive);
+
+    if (getSettings()->prefixOnlyEmoteCompletion)
+    {
+        this->completer_->setFilterMode(Qt::MatchStartsWith);
+    }
+    else
+    {
+        this->completer_->setFilterMode(Qt::MatchContains);
+    }
+
     QObject::connect(completer_,
                      static_cast<void (QCompleter::*)(const QString &)>(
                          &QCompleter::highlighted),

@@ -6,6 +6,7 @@
 #include "messages/MessageBuilder.hpp"
 #include "singletons/Emotes.hpp"
 #include "singletons/Logging.hpp"
+#include "singletons/Settings.hpp"
 #include "singletons/WindowManager.hpp"
 
 #include <QJsonArray>
@@ -102,6 +103,9 @@ void Channel::addOrReplaceTimeout(MessagePtr message)
 
     QTime minimumTime = QTime::currentTime().addSecs(-5);
 
+    auto timeoutStackStyle = static_cast<TimeoutStackStyle>(
+        getSettings()->timeoutStackStyle.getValue());
+
     for (int i = snapshotLength - 1; i >= end; --i)
     {
         auto &s = snapshot[i];
@@ -117,6 +121,16 @@ void Channel::addOrReplaceTimeout(MessagePtr message)
             break;
         }
 
+        if (timeoutStackStyle == TimeoutStackStyle::DontStackBeyondUserMessage)
+        {
+            if (s->loginName == message->timeoutUser &&
+                s->flags.hasNone({MessageFlag::Disabled, MessageFlag::Timeout,
+                                  MessageFlag::Untimeout}))
+            {
+                break;
+            }
+        }
+
         if (s->flags.has(MessageFlag::Timeout) &&
             s->timeoutUser == message->timeoutUser)  //
         {
@@ -130,7 +144,7 @@ void Channel::addOrReplaceTimeout(MessagePtr message)
             if (!message->flags.has(MessageFlag::PubSub) &&
                 s->flags.has(MessageFlag::PubSub))  //
             {
-                addMessage = false;
+                addMessage = timeoutStackStyle == TimeoutStackStyle::DontStack;
                 break;
             }
 
@@ -146,7 +160,8 @@ void Channel::addOrReplaceTimeout(MessagePtr message)
 
             this->replaceMessage(s, replacement.release());
 
-            return;
+            addMessage = false;
+            break;
         }
     }
 

@@ -53,7 +53,10 @@ public:
     static ImagePtr getEmpty();
 
     const Url &url() const;
-    boost::optional<QPixmap> pixmap() const;
+    bool loaded() const;
+    // either returns the current pixmap, or triggers loading it (lazy loading)
+    boost::optional<QPixmap> pixmapOrLoad() const;
+    void load() const;
     qreal scale() const;
     bool isEmpty() const;
     int width() const;
@@ -66,9 +69,11 @@ public:
 private:
     Image();
     Image(const Url &url, qreal scale);
-    Image(const QPixmap &nonOwning, qreal scale);
+    Image(qreal scale);
 
-    void load();
+    void setPixmap(const QPixmap &pixmap);
+
+    void actuallyLoad();
 
     Url url_{};
     qreal scale_{1};

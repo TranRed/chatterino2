@@ -153,7 +153,9 @@ void SplitInput::openEmotePopup()
 {
     if (!this->emotePopup_)
     {
-        this->emotePopup_ = std::make_unique<EmotePopup>();
+        this->emotePopup_ = new EmotePopup(this);
+        this->emotePopup_->setAttribute(Qt::WA_DeleteOnClose);
+
         this->emotePopup_->linkClicked.connect([this](const Link &link) {
             if (link.type == Link::InsertText)
             {
@@ -192,8 +194,8 @@ void SplitInput::installKeyPressedEvent()
 
             QString message = ui_.textEdit->toPlainText();
 
+            message = message.replace('\n', ' ');
             QString sendMessage = app->commands->execCommand(message, c, false);
-            sendMessage = sendMessage.replace('\n', ' ');
 
             c->sendMessage(sendMessage);
             // don't add duplicate messages and empty message to message history
@@ -253,7 +255,11 @@ void SplitInput::installKeyPressedEvent()
         else if (event->key() == Qt::Key_Home)
         {
             QTextCursor cursor = this->ui_.textEdit->textCursor();
-            cursor.movePosition(QTextCursor::Start);
+            cursor.movePosition(
+                QTextCursor::Start,
+                event->modifiers() & Qt::KeyboardModifier::ShiftModifier
+                    ? QTextCursor::MoveMode::KeepAnchor
+                    : QTextCursor::MoveMode::MoveAnchor);
             this->ui_.textEdit->setTextCursor(cursor);
 
             event->accept();
@@ -261,7 +267,11 @@ void SplitInput::installKeyPressedEvent()
         else if (event->key() == Qt::Key_End)
         {
             QTextCursor cursor = this->ui_.textEdit->textCursor();
-            cursor.movePosition(QTextCursor::End);
+            cursor.movePosition(
+                QTextCursor::End,
+                event->modifiers() & Qt::KeyboardModifier::ShiftModifier
+                    ? QTextCursor::MoveMode::KeepAnchor
+                    : QTextCursor::MoveMode::MoveAnchor);
             this->ui_.textEdit->setTextCursor(cursor);
 
             event->accept();
@@ -398,32 +408,6 @@ void SplitInput::installKeyPressedEvent()
                 {
                     page->selectNextSplit(SplitContainer::Right);
                 }
-            }
-        }
-        else if (event->key() == Qt::Key_Tab)
-        {
-            if (event->modifiers() == Qt::ControlModifier)
-            {
-                SplitContainer *page =
-                    static_cast<SplitContainer *>(this->split_->parentWidget());
-
-                Notebook *notebook =
-                    static_cast<Notebook *>(page->parentWidget());
-
-                notebook->selectNextTab();
-            }
-        }
-        else if (event->key() == Qt::Key_Backtab)
-        {
-            if (event->modifiers() == (Qt::ControlModifier | Qt::ShiftModifier))
-            {
-                SplitContainer *page =
-                    static_cast<SplitContainer *>(this->split_->parentWidget());
-
-                Notebook *notebook =
-                    static_cast<Notebook *>(page->parentWidget());
-
-                notebook->selectPreviousTab();
             }
         }
         else if (event->key() == Qt::Key_C &&

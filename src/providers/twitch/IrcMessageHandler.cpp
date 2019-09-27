@@ -79,6 +79,7 @@ std::vector<MessagePtr> IrcMessageHandler::parsePrivMessage(
     if (!builder.isIgnored())
     {
         builtMessages.emplace_back(builder.build());
+        builder.triggerHighlights();
     }
     return builtMessages;
 }
@@ -130,6 +131,7 @@ void IrcMessageHandler::addMessage(Communi::IrcMessage *_message,
         }
 
         auto msg = builder.build();
+        builder.triggerHighlights();
         auto highlighted = msg->flags.has(MessageFlag::Highlighted);
 
         if (!isSub)
@@ -193,6 +195,10 @@ void IrcMessageHandler::handleRoomStateMessage(Communi::IrcMessage *message)
             if ((it = tags.find("broadcaster-lang")) != tags.end())
             {
                 roomModes.broadcasterLang = it.value().toString();
+            }
+            if ((it = tags.find("followers-only")) != tags.end())
+            {
+                roomModes.followerOnly = it.value().toInt();
             }
             twitchChannel->setRoomModes(roomModes);
         }
@@ -357,6 +363,7 @@ void IrcMessageHandler::handleWhisperMessage(Communi::IrcMessage *message)
     {
         builder->flags.set(MessageFlag::Whisper);
         MessagePtr _message = builder.build();
+        builder.triggerHighlights();
 
         app->twitch.server->lastUserThatWhisperedMe.set(builder.userName);
 
@@ -513,12 +520,21 @@ void IrcMessageHandler::handleModeMessage(Communi::IrcMessage *message)
 std::vector<MessagePtr> IrcMessageHandler::parseNoticeMessage(
     Communi::IrcNoticeMessage *message)
 {
-    std::vector<MessagePtr> builtMessages;
+    if (message->content().startsWith("Login auth", Qt::CaseInsensitive))
+    {
+        return {MessageBuilder(systemMessage,
+                               "Login expired! Try logging in again.")
+                    .release()};
+    }
+    else
+    {
+        std::vector<MessagePtr> builtMessages;
 
-    builtMessages.emplace_back(makeSystemMessage(message->content()));
+        builtMessages.emplace_back(makeSystemMessage(message->content()));
 
-    return builtMessages;
-}
+        return builtMessages;
+    }
+}  // namespace chatterino
 
 void IrcMessageHandler::handleNoticeMessage(Communi::IrcNoticeMessage *message)
 {

@@ -54,6 +54,18 @@ namespace {
                 text += "emote, ";
             if (modes->submode)
                 text += "sub, ";
+            if (modes->followerOnly != -1)
+            {
+                if (modes->followerOnly != 0)
+                {
+                    text += QString("follow(%1m), ")
+                                .arg(QString::number(modes->followerOnly));
+                }
+                else
+                {
+                    text += QString("follow, ");
+                }
+            }
         }
 
         if (text.length() > 2)
@@ -77,20 +89,15 @@ namespace {
     }
     auto formatTooltip(const TwitchChannel::StreamStatus &s)
     {
-        return QStringList{"<style>.center { text-align: center; }</style>",
-                           "<p class=\"center\">",
-                           s.title.toHtmlEscaped(),
-                           "<br><br>",
-                           s.game.toHtmlEscaped(),
-                           "<br>",
-                           s.rerun ? "Vod-casting" : "Live",
-                           " for ",
-                           s.uptime,
-                           " with ",
-                           QString::number(s.viewerCount),
-                           " viewers",
-                           "</p>"}
-            .join("");
+        return QString("<style>.center { text-align: center; }</style> \
+            <p class=\"center\">%1%2%3%4%5 for %6 with %7 viewers</p>")
+            .arg(s.title.toHtmlEscaped())
+            .arg(s.title.isEmpty() ? QString() : "<br><br>")
+            .arg(s.game.toHtmlEscaped())
+            .arg(s.game.isEmpty() ? QString() : "<br>")
+            .arg(s.rerun ? "Vod-casting" : "Live")
+            .arg(s.uptime)
+            .arg(QString::number(s.viewerCount));
     }
     auto formatTitle(const TwitchChannel::StreamStatus &s, Settings &settings)
     {
@@ -109,9 +116,9 @@ namespace {
             title += " - " + s.uptime;
         if (settings.headerViewerCount)
             title += " - " + QString::number(s.viewerCount);
-        if (settings.headerGame)
+        if (settings.headerGame && !s.game.isEmpty())
             title += " - " + s.game;
-        if (settings.headerStreamTitle)
+        if (settings.headerStreamTitle && !s.title.isEmpty())
             title += " - " + s.title;
 
         return title;
@@ -176,9 +183,7 @@ void SplitHeader::initializeLayout()
                     switch (button)
                     {
                         case Qt::LeftButton:
-                            if (getApp()
-                                    ->moderationActions->items.getVector()
-                                    .empty())
+                            if (getApp()->moderationActions->items.empty())
                             {
                                 getApp()->windows->showSettingsDialog(
                                     SettingsDialogPreference::
@@ -222,19 +227,19 @@ void SplitHeader::initializeLayout()
     });
 
     // update moderation button when items changed
-    this->managedConnect(
-        getApp()->moderationActions->items.delayedItemsChanged, [this] {
-            if (getApp()->moderationActions->items.getVector().empty())
-            {
-                if (this->split_->getModerationMode())
-                    this->split_->setModerationMode(true);
-            }
-            else
-            {
-                if (this->split_->getModerationMode())
-                    this->split_->setModerationMode(true);
-            }
-        });
+    this->managedConnect(getApp()->moderationActions->items.delayedItemsChanged,
+                         [this] {
+                             if (getApp()->moderationActions->items.empty())
+                             {
+                                 if (this->split_->getModerationMode())
+                                     this->split_->setModerationMode(true);
+                             }
+                             else
+                             {
+                                 if (this->split_->getModerationMode())
+                                     this->split_->setModerationMode(true);
+                             }
+                         });
 
     layout->setMargin(0);
     layout->setSpacing(0);
@@ -251,9 +256,6 @@ std::unique_ptr<QMenu> SplitHeader::createMainMenu()
                     QKeySequence("Ctrl+R"));
     menu->addAction("Close", this->split_, &Split::deleteFromContainer,
                     QKeySequence("Ctrl+W"));
-    menu->addSeparator();
-    menu->addAction("How to move", this->split_, &Split::explainMoving);
-    menu->addAction("How to add/split", this->split_, &Split::explainSplitting);
     menu->addSeparator();
     menu->addAction("Popup", this->split_, &Split::popup);
     menu->addAction("Search", this->split_, &Split::showSearch,
@@ -282,10 +284,21 @@ std::unique_ptr<QMenu> SplitHeader::createMainMenu()
     menu->addAction(OPEN_IN_STREAMLINK, this->split_, &Split::openInStreamlink);
     menu->addSeparator();
 
+    {
+        // "How to..." sub menu
+        auto subMenu = new QMenu("How to...", this);
+        subMenu->addAction("move split", this->split_, &Split::explainMoving);
+        subMenu->addAction("add/split", this->split_, &Split::explainSplitting);
+        menu->addMenu(subMenu);
+    }
+
     // sub menu
     auto moreMenu = new QMenu("More", this);
+
     moreMenu->addAction("Show viewer list", this->split_,
                         &Split::showViewerList);
+
+    moreMenu->addAction("Subscribe", this->split_, &Split::openSubPage);
 
     auto action = new QAction(this);
     action->setText("Notify when live");
@@ -343,7 +356,9 @@ std::unique_ptr<QMenu> SplitHeader::createChatModeMenu()
     auto setEmote = new QAction("Emote only", this);
     auto setSlow = new QAction("Slow", this);
     auto setR9k = new QAction("R9K", this);
+    auto setFollowers = new QAction("Followers only", this);
 
+    setFollowers->setCheckable(true);
     setSub->setCheckable(true);
     setEmote->setCheckable(true);
     setSlow->setCheckable(true);
@@ -353,9 +368,10 @@ std::unique_ptr<QMenu> SplitHeader::createChatModeMenu()
     menu->addAction(setSub);
     menu->addAction(setSlow);
     menu->addAction(setR9k);
+    menu->addAction(setFollowers);
 
     this->managedConnections_.push_back(this->modeUpdateRequested_.connect(  //
-        [this, setSub, setEmote, setSlow, setR9k]() {
+        [this, setSub, setEmote, setSlow, setR9k, setFollowers]() {
             auto twitchChannel =
                 dynamic_cast<TwitchChannel *>(this->split_->getChannel().get());
             if (twitchChannel == nullptr)
@@ -370,6 +386,7 @@ std::unique_ptr<QMenu> SplitHeader::createChatModeMenu()
             setSlow->setChecked(roomModes->slowMode);
             setEmote->setChecked(roomModes->emoteOnly);
             setSub->setChecked(roomModes->submode);
+            setFollowers->setChecked(roomModes->followerOnly != -1);
         }));
 
     auto toggle = [this](const QString &command, QAction *action) mutable {
@@ -406,6 +423,30 @@ std::unique_ptr<QMenu> SplitHeader::createChatModeMenu()
             setSlow->setChecked(false);
         }
     });
+
+    QObject::connect(
+        setFollowers, &QAction::triggered, this, [setFollowers, this]() {
+            if (!setFollowers->isChecked())
+            {
+                this->split_->getChannel().get()->sendMessage("/followersoff");
+                setFollowers->setChecked(false);
+                return;
+            };
+            auto ok = bool();
+            auto time = QInputDialog::getText(
+                this, "", "Time:", QLineEdit::Normal, "15m", &ok,
+                Qt::FramelessWindowHint,
+                Qt::ImhLowercaseOnly | Qt::ImhPreferNumbers);
+            if (ok)
+            {
+                this->split_->getChannel().get()->sendMessage(
+                    QString("/followers %1").arg(time));
+            }
+            else
+            {
+                setFollowers->setChecked(false);
+            }
+        });
 
     QObject::connect(
         setR9k, &QAction::triggered, this,
@@ -499,9 +540,8 @@ void SplitHeader::updateChannelText()
 
 void SplitHeader::updateModerationModeIcon()
 {
-    auto moderationMode =
-        this->split_->getModerationMode() &&
-        !getApp()->moderationActions->items.getVector().empty();
+    auto moderationMode = this->split_->getModerationMode() &&
+                          !getApp()->moderationActions->items.empty();
 
     this->moderationButton_->setPixmap(
         moderationMode ? getApp()->resources->buttons.modModeEnabled

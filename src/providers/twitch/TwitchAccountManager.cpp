@@ -15,8 +15,9 @@ TwitchAccountManager::TwitchAccountManager()
         currentUser->loadIgnores();
     });
 
-    this->accounts.itemRemoved.connect(
-        [this](const auto &acc) { this->removeUser(acc.item.get()); });
+    this->accounts.itemRemoved.connect([this](const auto &acc) {  //
+        this->removeUser(acc.item.get());
+    });
 }
 
 std::shared_ptr<TwitchAccount> TwitchAccountManager::getCurrent()
@@ -35,7 +36,7 @@ std::vector<QString> TwitchAccountManager::getUsernames() const
 
     std::lock_guard<std::mutex> lock(this->mutex_);
 
-    for (const auto &user : this->accounts.getVector())
+    for (const auto &user : this->accounts)
     {
         userNames.push_back(user->getUserName());
     }
@@ -48,7 +49,7 @@ std::shared_ptr<TwitchAccount> TwitchAccountManager::findUserByUsername(
 {
     std::lock_guard<std::mutex> lock(this->mutex_);
 
-    for (const auto &user : this->accounts.getVector())
+    for (const auto &user : this->accounts)
     {
         if (username.compare(user->getUserName(), Qt::CaseInsensitive) == 0)
         {

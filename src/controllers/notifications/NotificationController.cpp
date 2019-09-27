@@ -11,10 +11,6 @@
 #include "singletons/WindowManager.hpp"
 #include "widgets/Window.hpp"
 
-#ifdef Q_OS_WIN
-#    include <wintoastlib.h>
-#endif
-
 #include <QDesktopServices>
 #include <QDir>
 #include <QMediaPlayer>
@@ -41,7 +37,7 @@ void NotificationController::initialize(Settings &settings, Paths &paths)
 
     this->channelMap[Platform::Mixer].delayedItemsChanged.connect([this] {  //
         this->mixerSetting_.setValue(
-            this->channelMap[Platform::Mixer].getVector());
+            this->channelMap[Platform::Mixer]);
     });*/
 
     liveStatusTimer_ = new QTimer();
@@ -69,7 +65,7 @@ void NotificationController::updateChannelNotification(
 bool NotificationController::isChannelNotified(const QString &channelName,
                                                Platform p)
 {
-    for (const auto &channel : this->channelMap[p].getVector())
+    for (const auto &channel : this->channelMap[p])
     {
         if (channelName.toLower() == channel.toLower())
         {
@@ -155,56 +151,54 @@ void NotificationController::getFakeTwitchChannelLiveStatus(
         log("[TwitchChannel:{}] Refreshing live status", channelName);
 
         QString url("https://api.twitch.tv/kraken/streams/" + roomID);
-        auto request = NetworkRequest::twitchRequest(url);
-        request.setCaller(QThread::currentThread());
-
-        request.onSuccess([this, channelName](auto result) -> Outcome {
-            rapidjson::Document document = result.parseRapidJson();
-            if (!document.IsObject())
-            {
-                log("[TwitchChannel:refreshLiveStatus]root is not an object");
-                return Failure;
-            }
-
-            if (!document.HasMember("stream"))
-            {
-                log("[TwitchChannel:refreshLiveStatus] Missing stream in root");
-                return Failure;
-            }
-
-            const auto &stream = document["stream"];
-
-            if (!stream.IsObject())
-            {
-                // Stream is offline (stream is most likely null)
-                // removeFakeChannel(channelName);
-                return Failure;
-            }
-            // Stream is live
-            auto i = std::find(fakeTwitchChannels.begin(),
-                               fakeTwitchChannels.end(), channelName);
-
-            if (!(i != fakeTwitchChannels.end()))
-            {
-                fakeTwitchChannels.push_back(channelName);
-                if (Toasts::isEnabled())
+        NetworkRequest::twitchRequest(url)
+            .onSuccess([this, channelName](auto result) -> Outcome {
+                rapidjson::Document document = result.parseRapidJson();
+                if (!document.IsObject())
                 {
-                    getApp()->toasts->sendChannelNotification(channelName,
-                                                              Platform::Twitch);
+                    log("[TwitchChannel:refreshLiveStatus]root is not an "
+                        "object");
+                    return Failure;
                 }
-                if (getSettings()->notificationPlaySound)
-                {
-                    getApp()->notifications->playSound();
-                }
-                if (getSettings()->notificationFlashTaskbar)
-                {
-                    getApp()->windows->sendAlert();
-                }
-            }
-            return Success;
-        });
 
-        request.execute();
+                if (!document.HasMember("stream"))
+                {
+                    log("[TwitchChannel:refreshLiveStatus] Missing stream in "
+                        "root");
+                    return Failure;
+                }
+
+                const auto &stream = document["stream"];
+
+                if (!stream.IsObject())
+                {
+                    // Stream is offline (stream is most likely null)
+                    // removeFakeChannel(channelName);
+                    return Failure;
+                }
+                // Stream is live
+                auto i = std::find(fakeTwitchChannels.begin(),
+                                   fakeTwitchChannels.end(), channelName);
+
+                if (!(i != fakeTwitchChannels.end()))
+                {
+                    fakeTwitchChannels.push_back(channelName);
+                    if (getSettings()->notificationToast)
+                    {
+                        getApp()->toasts->sendToastMessage(channelName);
+                    }
+                    if (getSettings()->notificationPlaySound)
+                    {
+                        getApp()->notifications->playSound();
+                    }
+                    if (getSettings()->notificationFlashTaskbar)
+                    {
+                        getApp()->windows->sendAlert();
+                    }
+                }
+                return Success;
+            })
+            .execute();
     });
 }
 

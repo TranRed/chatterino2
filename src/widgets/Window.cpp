@@ -115,27 +115,27 @@ void Window::showEvent(QShowEvent *event)
     {
         getSettings()->startUpNotification = 1;
 
-        auto box = new QMessageBox(
-            QMessageBox::Information, "Chatterino 2 Beta",
-            "Please note that this software is not stable yet. Things are "
-            "rough "
-            "around the edges and everything is subject to change.");
-        box->setAttribute(Qt::WA_DeleteOnClose);
-        box->show();
+        // auto box = new QMessageBox(
+        //     QMessageBox::Information, "Chatterino 2 Beta",
+        //     "Please note that this software is not stable yet. Things are "
+        //     "rough "
+        //     "around the edges and everything is subject to change.");
+        // box->setAttribute(Qt::WA_DeleteOnClose);
+        // box->show();
     }
 
     // Show changelog
     if (getSettings()->currentVersion.getValue() != "" &&
         getSettings()->currentVersion.getValue() != CHATTERINO_VERSION)
     {
-        auto box = new QMessageBox(QMessageBox::Information,
-                                   "Chatterino 2 Beta", "Show changelog?",
+        auto box = new QMessageBox(QMessageBox::Information, "Chatterino 2",
+                                   "Show changelog?",
                                    QMessageBox::Yes | QMessageBox::No);
         box->setAttribute(Qt::WA_DeleteOnClose);
         if (box->exec() == QMessageBox::Yes)
         {
             QDesktopServices::openUrl(
-                QUrl("https://fourtf.com/chatterino-changelog/"));
+                QUrl("https://www.chatterino.com/changelog"));
         }
     }
 
@@ -270,24 +270,22 @@ void Window::addShortcuts()
         this->notebook_->getOrAddSelectedPage()->appendNewSplit(true);
     });
 
-    createWindowShortcut(this, "CTRL+1",
-                         [this] { this->notebook_->selectIndex(0); });
-    createWindowShortcut(this, "CTRL+2",
-                         [this] { this->notebook_->selectIndex(1); });
-    createWindowShortcut(this, "CTRL+3",
-                         [this] { this->notebook_->selectIndex(2); });
-    createWindowShortcut(this, "CTRL+4",
-                         [this] { this->notebook_->selectIndex(3); });
-    createWindowShortcut(this, "CTRL+5",
-                         [this] { this->notebook_->selectIndex(4); });
-    createWindowShortcut(this, "CTRL+6",
-                         [this] { this->notebook_->selectIndex(5); });
-    createWindowShortcut(this, "CTRL+7",
-                         [this] { this->notebook_->selectIndex(6); });
-    createWindowShortcut(this, "CTRL+8",
-                         [this] { this->notebook_->selectIndex(7); });
+    // CTRL + 1-8 to open corresponding tab.
+    for (auto i = 0; i < 8; i++)
+    {
+        char hotkey[7];
+        std::sprintf(hotkey, "CTRL+%d", i + 1);
+        const auto openTab = [this, i] { this->notebook_->selectIndex(i); };
+        createWindowShortcut(this, hotkey, openTab);
+    }
+
     createWindowShortcut(this, "CTRL+9",
-                         [this] { this->notebook_->selectIndex(8); });
+                         [this] { this->notebook_->selectLastTab(); });
+
+    createWindowShortcut(this, "CTRL+TAB",
+                         [this] { this->notebook_->selectNextTab(); });
+    createWindowShortcut(this, "CTRL+SHIFT+TAB",
+                         [this] { this->notebook_->selectPreviousTab(); });
 
     // Zoom in
     {
@@ -346,11 +344,25 @@ void Window::addMenuBar()
     QMenuBar *mainMenu = new QMenuBar();
     mainMenu->setNativeMenuBar(true);
 
-    QMenu *menu = new QMenu(QString());
-    mainMenu->addMenu(menu);
+    // First menu.
+    QMenu *menu = mainMenu->addMenu(QString());
     QAction *prefs = menu->addAction(QString());
     prefs->setMenuRole(QAction::PreferencesRole);
-    connect(prefs, &QAction::triggered, this, [] { SettingsDialog::showDialog(); });
+    connect(prefs, &QAction::triggered, this,
+            [] { SettingsDialog::showDialog(); });
+
+    // Window menu.
+    QMenu *windowMenu = mainMenu->addMenu(QString("Window"));
+
+    QAction *nextTab = windowMenu->addAction(QString("Select next tab"));
+    nextTab->setShortcuts({QKeySequence("Meta+Tab")});
+    connect(nextTab, &QAction::triggered, this,
+            [=] { this->notebook_->selectNextTab(); });
+
+    QAction *prevTab = windowMenu->addAction(QString("Select previous tab"));
+    prevTab->setShortcuts({QKeySequence("Meta+Shift+Tab")});
+    connect(prevTab, &QAction::triggered, this,
+            [=] { this->notebook_->selectPreviousTab(); });
 }
 
 #define UGLYMACROHACK1(s) #s
@@ -365,7 +377,7 @@ void Window::onAccountSelected()
         QString("Chatterino Nightly " CHATTERINO_VERSION
                 " (" UGLYMACROHACK(CHATTERINO_NIGHTLY_VERSION_STRING) ")");
 #else
-    auto windowTitleEnd = QString("Chatterino Beta " CHATTERINO_VERSION);
+    auto windowTitleEnd = QString("Chatterino " CHATTERINO_VERSION);
 #endif
 
     this->setWindowTitle(windowTitleEnd);
